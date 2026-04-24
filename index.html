@@ -740,20 +740,45 @@
         };
         window.handlePetugasLogin = (e) => { e.preventDefault(); const p = document.getElementById('petugas-password').value; if(p === window.pondokIdentity.tamuPass) { window.currentUserRole = 'petugas'; localStorage.setItem('nm_role', 'petugas'); window.enterApp(); } else window.showToast("Password Salah!"); };
         window.handleLogoUpload = (input) => { const file = input.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (e) => { window.pondokIdentity.logo = e.target.result; window.showToast("LOGO TERUNGGAH!"); }; reader.readAsDataURL(file); };
-        window.safeStopScanner = async () => { if (window.html5QrCode && window.html5QrCode.getState() === 2) { await window.html5QrCode.stop(); } window.html5QrCode = null; };
+        
+        window.safeStopScanner = async () => { 
+            try {
+                if (window.html5QrCode) {
+                    if (window.html5QrCode.getState() === 2) { 
+                        await window.html5QrCode.stop(); 
+                    }
+                    window.html5QrCode = null;
+                }
+            } catch(e) { console.warn("Scanner stop warning", e); }
+        };
         
         window.renderScan = () => {
             const schs = window.getActiveSchedules();
+            const isHttps = location.protocol === 'https:';
+            
             document.getElementById('content-area').innerHTML = `
             <div class="max-w-xl mx-auto animate-in text-center pb-20">
                 <div class="glass-card p-6 md:p-12 rounded-[2.5rem] border shadow-2xl relative overflow-hidden">
                     <h3 class="text-2xl md:text-3xl font-black uppercase text-slate-800 mb-2 tracking-tighter">Presensi QR</h3>
+                    
+                    ${!isHttps ? `
+                    <div class="bg-rose-50 border border-rose-100 p-4 rounded-2xl mb-6">
+                        <p class="text-[10px] font-black text-rose-600 uppercase tracking-widest">
+                            <i class="fas fa-exclamation-triangle mr-2"></i> Peringatan Keamanan
+                        </p>
+                        <p class="text-[8px] font-bold text-rose-400 mt-1 uppercase">
+                            Kamera tidak akan terbuka jika situs tidak menggunakan HTTPS. Gunakan domain dengan SSL.
+                        </p>
+                    </div>
+                    ` : ''}
+
                     <div class="mb-8 mt-2">
                         <p id="scan-status-text" class="text-[10px] font-bold ${schs.length > 0 ? 'text-emerald-500' : 'text-rose-500'} uppercase tracking-widest">
                             ${schs.length > 0 ? `SESI AKTIF: ${schs.map(x=>x.nama).join(', ')}` : 'STATUS: JAM STANDBY (SCAN DITOLAK)'}
                         </p>
                         ${schs.length > 0 ? `<p class="text-[8px] font-black text-slate-400 mt-1 uppercase">Validasi otomatis berdasarkan Tingkatan santri</p>` : ''}
                     </div>
+                    
                     <div id="reader-wrapper" class="relative rounded-[1.5rem] overflow-hidden aspect-square bg-slate-900 border-4 border-slate-100 shadow-inner">
                         <div id="qr-reader" class="w-full h-full"></div>
                         <div class="scan-overlay"></div>
@@ -766,6 +791,16 @@
                             </div>
                         </div>
                     </div>
+
+                    <div id="camera-error-hint" class="hidden mt-6 text-left p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                        <p class="text-[9px] font-black uppercase text-slate-500 mb-2">Tips Gagal Kamera:</p>
+                        <ul class="text-[8px] font-bold text-slate-400 space-y-1 list-disc list-inside uppercase tracking-tighter leading-tight">
+                            <li>Pastikan HTTPS aktif (ikon gembok terkunci).</li>
+                            <li>Izinkan akses kamera saat diminta browser.</li>
+                            <li>Tutup aplikasi kamera lain yang sedang terbuka.</li>
+                            <li>Refresh halaman dan coba lagi.</li>
+                        </ul>
+                    </div>
                 </div>
             </div>`;
 
@@ -773,15 +808,22 @@
                 try {
                     await window.safeStopScanner();
                     window.html5QrCode = new Html5Qrcode("qr-reader");
+                    const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+                    
                     await window.html5QrCode.start(
                         { facingMode: "environment" },
-                        { fps: 15, qrbox: { width: 250, height: 250 } },
+                        config,
                         (t) => window.processScannerData(t.trim())
-                    );
+                    ).catch(err => {
+                        console.error("Scanner startup error:", err);
+                        document.getElementById('camera-error-hint').classList.remove('hidden');
+                        window.showToast("Kamera gagal dimulai.");
+                    });
                 } catch (e) {
+                    console.error("Render Scan error:", e);
                     window.showToast("Kamera tidak dapat diakses.");
                 }
-            }, 500);
+            }, 800);
         };
 
         window.addAdminAccount = async () => {
