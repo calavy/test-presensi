@@ -155,12 +155,18 @@
 
         // Global Variables
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'nailul-muna-v14-pro';
-        let firebaseConfig = {};
-        try {
-            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        } catch(e) {
-            console.error("Firebase config error:", e);
-        }
+        
+        // --- NEW FIREBASE CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyA3USbfzVYgH0zpmHlYewurFeFSC4P_y28",
+            authDomain: "absensi-wajah-a5262.firebaseapp.com",
+            databaseURL: "https://absensi-wajah-a5262-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "absensi-wajah-a5262",
+            storageBucket: "absensi-wajah-a5262.firebasestorage.app",
+            messagingSenderId: "136628217360",
+            appId: "1:136628217360:web:0ccc83861ca1a120facc95",
+            measurementId: "G-1GXT66XHNF"
+        };
         
         let app, auth, db;
         
@@ -455,7 +461,7 @@
                     <button onclick="window.renderAktivasiForm()" class="p-4 px-10 btn-primary text-white rounded-2xl font-black text-[10px] uppercase shadow-lg tracking-widest">+ Aktivasi Santri</button>
                 </div>
                 <div class="bg-white rounded-[3rem] border overflow-hidden shadow-sm">
-                    <table class="w-full text-left text-xs uppercase"><thead class="bg-slate-50 border-b text-[10px] font-black uppercase text-slate-400"><tr><th class="p-8">IDENTITAS</th><th class="p-8">TINGKATAN</th><th class="p-8 text-center">AKSI</th></tr></thead>
+                    <table class="w-full text-left text-xs uppercase"><thead class="bg-slate-50 border-b text-10px] font-black uppercase text-slate-400"><tr><th class="p-8">IDENTITAS</th><th class="p-8">TINGKATAN</th><th class="p-8 text-center">AKSI</th></tr></thead>
                     <tbody class="divide-y">${window.dataSantriAktif.map(s => `<tr><td class="p-8 font-black leading-tight">${s.nama}<br><span class="text-[8px] font-mono text-slate-400">${s.nis}</span></td><td class="p-8 font-bold text-indigo-500">${s.tingkatan || '-'}</td><td class="p-8 text-center space-x-2"><button onclick="window.renderEditAktifForm('${s.id}')" class="text-emerald-400 hover:text-emerald-600 px-2"><i class="fas fa-edit"></i></button><button onclick="window.showQRCard('${s.id}')" class="text-slate-300 hover:text-indigo-600 px-2"><i class="fas fa-qrcode"></i></button><button onclick="window.deleteData('santri_aktif', '${s.id}')" class="text-rose-200 hover:text-rose-500 px-2"><i class="fas fa-trash"></i></button></td></tr>`).join('') || '<tr><td colspan="3" class="p-10 text-center italic text-slate-400">Nihil.</td></tr>'}</tbody></table>
                 </div>
             </div>`;
@@ -753,12 +759,20 @@
                 db = getFirestore(app); 
                 auth = getAuth(app); 
 
-                // Auth Logic
+                // Auth Logic with Fail-Safe for Custom Tokens
                 const initAuth = async () => {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        return await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        return await signInAnonymously(auth);
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            return await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            return await signInAnonymously(auth);
+                        }
+                    } catch (authErr) {
+                        // Fallback to anonymous if token mismatch (common with custom project IDs)
+                        if (authErr.code === 'auth/custom-token-mismatch' || authErr.code === 'auth/invalid-custom-token') {
+                            return await signInAnonymously(auth);
+                        }
+                        throw authErr;
                     }
                 };
 
