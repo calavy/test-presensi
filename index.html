@@ -151,12 +151,12 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, addDoc, updateDoc, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, addDoc, updateDoc, query, where, getDocs, writeBatch, deleteField } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Variables
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'nailul-muna-v14-pro';
         
-        // --- NEW FIREBASE CONFIGURATION ---
+        // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
             apiKey: "AIzaSyA3USbfzVYgH0zpmHlYewurFeFSC4P_y28",
             authDomain: "absensi-wajah-a5262.firebaseapp.com",
@@ -388,19 +388,18 @@
 
         // --- PAGE RENDERS ---
         window.renderDashboard = () => {
-            const activeLeave = window.dataIzin.filter(i => {
-                const nowTime = new Date().getTime();
+            const nowTime = new Date().getTime();
+            // Filter santri yang sedang izin (belom scan kembali)
+            const santriIzin = window.dataIzin.filter(i => {
+                if (i.status === 'Selesai') return false;
                 const startD = new Date(i.tglMulai + (i.jamMulai ? 'T' + i.jamMulai : 'T00:00')).getTime();
-                const endD = new Date(i.tglSelesai + (i.jamSelesai ? 'T' + i.jamSelesai : 'T23:59')).getTime();
-                return nowTime >= startD && nowTime <= endD;
+                // Jika masa berlaku belum lewat atau sudah lewat tapi belum scan kembali (Terlambat)
+                return nowTime >= startD;
             });
+
             const activeSchedules = window.getActiveSchedules();
             const { masehi } = window.getFormattedDates();
-            const badSantri = window.dataSantriAktif.map(s => {
-                const stats = window.calculateSantriMonthlyStats(s.nis, new Date().getMonth() + 1, new Date().getFullYear(), 'masehi');
-                return { ...s, alpaCount: stats.alpa };
-            }).filter(s => s.alpaCount > 0).sort((a,b) => b.alpaCount - a.alpaCount).slice(0, 5);
-
+            
             document.getElementById('content-area').innerHTML = `
             <div class="space-y-10 animate-in pb-20">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -413,26 +412,39 @@
                         <h3 class="text-6xl font-black text-indigo-950">${window.dataSantriAktif.length}</h3>
                     </div>
                     <div class="glass-card p-8 rounded-[2.5rem] h-52 flex flex-col justify-between border-l-8 border-amber-500">
-                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Izin Berjalan</p>
-                        <h3 class="text-6xl font-black text-amber-500">${activeLeave.length}</h3>
+                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sedang Izin</p>
+                        <h3 class="text-6xl font-black text-amber-500">${santriIzin.length}</h3>
                     </div>
                 </div>
-                <div class="bg-white p-10 rounded-[3rem] border border-indigo-100 shadow-sm">
-                    <h3 class="text-lg font-black text-slate-800 uppercase tracking-tighter mb-8"><i class="fas fa-calendar-check text-indigo-600 mr-2"></i> Jadwal Berlangsung</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        ${activeSchedules.map(sch => `<div class="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex justify-between items-center"><div><p class="font-black text-xs uppercase text-indigo-900">${sch.nama}</p><p class="text-[8px] font-bold text-indigo-400 mt-1 uppercase tracking-widest">${sch.waktuMulai} • DURASI ${sch.durasi}m</p></div><div class="flex gap-1 flex-wrap justify-end">${(sch.tingkatan || []).map(t => `<span class="bg-indigo-600 text-white text-[7px] px-2 py-0.5 rounded-full font-black uppercase">${t}</span>`).join('') || '<span class="text-slate-300">SEMUA</span>'}</div></div>`).join('') || '<p class="text-xs italic text-slate-400 text-center py-10 col-span-2">Tidak ada jadwal aktif.</p>'}
-                    </div>
-                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div class="bg-white p-10 rounded-[3rem] border border-rose-100 shadow-sm">
-                        <h3 class="text-lg font-black text-slate-800 uppercase tracking-tighter mb-8"><i class="fas fa-exclamation-circle text-rose-500 mr-2"></i> Santri Butuh Perhatian (Top Alpa)</h3>
+                    <div class="bg-white p-10 rounded-[3rem] border border-indigo-100 shadow-sm">
+                        <h3 class="text-lg font-black text-slate-800 uppercase tracking-tighter mb-8"><i class="fas fa-calendar-check text-indigo-600 mr-2"></i> Jadwal Berlangsung</h3>
                         <div class="space-y-4">
-                            ${badSantri.map(s => `<div class="p-5 bg-rose-50 rounded-2xl border border-rose-100 flex justify-between items-center"><div><p class="font-black text-xs uppercase text-slate-700">${s.nama}</p><p class="text-[8px] font-bold text-rose-600 mt-1 uppercase">${s.tingkatan || '-'}</p></div><span class="px-3 py-1 bg-rose-500 text-white rounded-full font-black text-[10px]">${s.alpaCount} ALPA</span></div>`).join('') || '<p class="text-xs italic text-slate-400 text-center py-10">Nihil.</p>'}
+                            ${activeSchedules.map(sch => `<div class="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex justify-between items-center"><div><p class="font-black text-xs uppercase text-indigo-900">${sch.nama}</p><p class="text-[8px] font-bold text-indigo-400 mt-1 uppercase tracking-widest">${sch.waktuMulai} • DURASI ${sch.durasi}m</p></div><div class="flex gap-1 flex-wrap justify-end">${(sch.tingkatan || []).map(t => `<span class="bg-indigo-600 text-white text-[7px] px-2 py-0.5 rounded-full font-black uppercase">${t}</span>`).join('') || '<span class="text-slate-300">SEMUA</span>'}</div></div>`).join('') || '<p class="text-xs italic text-slate-400 text-center py-10">Tidak ada jadwal aktif.</p>'}
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-10 rounded-[3rem] border border-amber-100 shadow-sm">
+                        <h3 class="text-lg font-black text-slate-800 uppercase tracking-tighter mb-8"><i class="fas fa-walking text-amber-500 mr-2"></i> Santri Diluar (Izin)</h3>
+                        <div class="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                            ${santriIzin.map(i => {
+                                const endD = new Date(i.tglSelesai + (i.jamSelesai ? 'T' + i.jamSelesai : 'T23:59')).getTime();
+                                const isLate = nowTime > endD;
+                                return `
+                                <div class="p-5 ${isLate ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'} rounded-2xl border flex justify-between items-center">
+                                    <div>
+                                        <p class="font-black text-xs uppercase text-slate-800">${i.nama}</p>
+                                        <p class="text-[8px] font-bold ${isLate ? 'text-rose-500' : 'text-amber-600'} mt-1 uppercase">Selesai: ${i.tglSelesai} ${i.jamSelesai || ''}</p>
+                                    </div>
+                                    <span class="px-3 py-1 rounded-full font-black text-[8px] ${isLate ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white'}">${isLate ? 'TERLAMBAT' : i.kriteria.toUpperCase()}</span>
+                                </div>`;
+                            }).join('') || '<p class="text-xs italic text-slate-400 text-center py-10">Semua santri berada di pondok.</p>'}
                         </div>
                     </div>
                 </div>
             </div>`;
-            window.updateDashboardTime(); // Immediate update
+            window.updateDashboardTime();
         };
 
         // --- MASTER & AKTIF PAGES ---
@@ -480,8 +492,10 @@
             document.getElementById('content-area').innerHTML = `
             <div class="max-w-xl mx-auto animate-in text-center pb-20">
                 <div class="glass-card p-12 rounded-[2.5rem] border shadow-2xl relative overflow-hidden">
-                    <h3 class="text-3xl font-black uppercase text-slate-800 mb-2 tracking-tighter">Presensi QR</h3>
-                    <div class="mb-8 mt-2"><p class="text-[10px] font-bold ${schs.length > 0 ? 'text-emerald-500' : 'text-rose-500'} uppercase tracking-widest">${schs.length > 0 ? `SESI AKTIF: ${schs.map(x=>x.nama).join(', ')}` : 'STATUS: JAM STANDBY'}</p></div>
+                    <h3 class="text-3xl font-black uppercase text-slate-800 mb-2 tracking-tighter">Scanner Digital</h3>
+                    <div class="mb-8 mt-2">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Presensi Jadwal & Konfirmasi Izin</p>
+                    </div>
                     <div id="reader-wrapper" class="relative rounded-[1.5rem] overflow-hidden aspect-square bg-slate-900 border-4 border-slate-100 shadow-inner">
                         <div id="qr-reader" class="w-full h-full"></div>
                         <div class="scan-overlay"></div>
@@ -489,6 +503,11 @@
                             <div id="fb-bg" class="absolute inset-0"></div>
                             <div class="relative z-20 text-white text-center p-6"><i id="fb-icon" class="fas fa-check-circle text-5xl mb-4"></i><h4 id="fb-title" class="text-2xl font-black uppercase">--</h4><p id="fb-desc" class="text-[9px] font-bold opacity-80 uppercase mt-2">--</p></div>
                         </div>
+                    </div>
+                    <div class="mt-8 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                        <p class="text-[10px] font-black ${schs.length > 0 ? 'text-emerald-600' : 'text-amber-600'} uppercase tracking-widest">
+                            ${schs.length > 0 ? `KEGIATAN: ${schs.map(x=>x.nama).join(', ')}` : 'SISTEM STANDBY (SCAN SURAT IZIN TETAP AKTIF)'}
+                        </p>
                     </div>
                 </div>
             </div>`;
@@ -500,15 +519,39 @@
             document.getElementById('content-area').innerHTML = `
             <div class="space-y-8 animate-in pb-20">
                 <div class="bg-white p-8 rounded-[3rem] border shadow-sm space-y-6">
-                    <div class="flex justify-between items-center"><div><h3 class="text-xl font-black text-slate-800 uppercase tracking-tighter">Rekapitulasi Kehadiran</h3></div><div class="flex bg-slate-100 p-1 rounded-2xl"><button onclick="window.switchRekapMode('harian')" class="px-5 py-2 text-[9px] font-black uppercase rounded-xl ${mode === 'harian' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}">Harian</button><button onclick="window.switchRekapMode('bulanan')" class="px-5 py-2 text-[9px] font-black uppercase rounded-xl ${mode === 'bulanan' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}">Bulanan</button></div></div>
+                    <div class="flex justify-between items-center">
+                        <div><h3 class="text-xl font-black text-slate-800 uppercase tracking-tighter">Rekapitulasi Sistem</h3></div>
+                        <div class="flex bg-slate-100 p-1 rounded-2xl">
+                            <button onclick="window.switchRekapMode('harian')" class="px-5 py-2 text-[9px] font-black uppercase rounded-xl ${mode === 'harian' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}">Presensi</button>
+                            <button onclick="window.switchRekapMode('izin-terlambat')" class="px-5 py-2 text-[9px] font-black uppercase rounded-xl ${mode === 'izin-terlambat' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}">Keterlambatan Izin</button>
+                            <button onclick="window.switchRekapMode('bulanan')" class="px-5 py-2 text-[9px] font-black uppercase rounded-xl ${mode === 'bulanan' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}">Bulanan</button>
+                        </div>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         ${mode === 'bulanan' ? `<div class="flex bg-indigo-50 p-1 rounded-2xl border border-indigo-100"><button onclick="window.updateRekapFilter('calendarMode', 'masehi')" class="flex-1 py-3 text-[9px] font-black uppercase rounded-xl ${calendarMode === 'masehi' ? 'bg-indigo-600 text-white shadow-lg' : 'text-indigo-400'}">Masehi</button><button onclick="window.updateRekapFilter('calendarMode', 'hijriah')" class="flex-1 py-3 text-[9px] font-black uppercase rounded-xl ${calendarMode === 'hijriah' ? 'bg-indigo-600 text-white shadow-lg' : 'text-indigo-400'}">Hijriah</button></div><select onchange="window.updateRekapFilter('bulan', parseInt(this.value))" class="p-4 bg-slate-50 border rounded-2xl text-xs font-bold uppercase">${calendarMode === 'masehi' ? [1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}" ${window.rekapFilter.bulan === m ? 'selected' : ''}>${new Date(2000, m-1).toLocaleString('id-ID', {month: 'long'})}</option>`).join('') : window.hijriMonths.map((m, idx) => `<option value="${idx+1}" ${window.rekapFilter.bulan === idx+1 ? 'selected' : ''}>${m}</option>`).join('')}</select>` : `<input placeholder="Cari Nama..." oninput="window.updateRekapFilter('nama', this.value)" value="${window.rekapFilter.nama}" class="md:col-span-2 p-4 bg-slate-50 border rounded-2xl text-xs font-bold uppercase outline-none">`}
                         <select onchange="window.updateRekapFilter('tingkatan', this.value)" class="p-4 bg-slate-50 border rounded-2xl text-xs font-bold uppercase"><option value="">-- SEMUA TINGKATAN --</option>${window.tingkatanList.map(t => `<option value="${t}" ${window.rekapFilter.tingkatan === t ? 'selected' : ''}>${t}</option>`).join('')}</select>
                         <button onclick="window.exportRekapPDF()" class="px-6 py-3 bg-rose-50 text-rose-600 rounded-2xl font-black text-[9px] uppercase hover:bg-rose-100"><i class="fas fa-file-pdf"></i> Ekspor PDF</button>
                     </div>
                 </div>
-                <div class="bg-white rounded-[3rem] border overflow-hidden shadow-sm overflow-x-auto custom-scrollbar">${mode === 'bulanan' ? window.getMonthlyRekapTable() : window.getDailyRekapTable()}</div>
+                <div class="bg-white rounded-[3rem] border overflow-hidden shadow-sm overflow-x-auto custom-scrollbar">
+                    ${mode === 'izin-terlambat' ? window.getLateLeaveTable() : (mode === 'bulanan' ? window.getMonthlyRekapTable() : window.getDailyRekapTable())}
+                </div>
             </div>`;
+        };
+
+        window.getLateLeaveTable = () => {
+            const filtered = window.dataIzin.filter(i => {
+                const matchName = i.nama.toLowerCase().includes(window.rekapFilter.nama.toLowerCase());
+                const matchTingkat = window.rekapFilter.tingkatan === "" || i.tingkatan === window.rekapFilter.tingkatan;
+                return (i.status === 'Terlambat' || (i.status === 'Selesai' && i.keterlambatan)) && matchName && matchTingkat;
+            });
+            return `
+            <table class="w-full text-left text-[10px] uppercase">
+                <thead class="bg-slate-50 border-b text-slate-400 font-black"><tr><th class="p-6">SANTRI</th><th class="p-6">RENCANA KEMBALI</th><th class="p-6">WAKTU SCAN</th><th class="p-6">DURASI TELAT</th></tr></thead>
+                <tbody class="divide-y">
+                    ${filtered.map(i => `<tr><td class="p-6 font-black">${i.nama}</td><td class="p-6 font-bold text-slate-400">${i.tglSelesai} ${i.jamSelesai || ''}</td><td class="p-6 font-bold text-rose-500">${i.kembaliTimestamp ? new Date(i.kembaliTimestamp).toLocaleString('id-ID') : 'BELUM KEMBALI'}</td><td class="p-6"><span class="px-3 py-1 rounded-full font-black text-[8px] bg-rose-100 text-rose-600">${i.keterlambatan || 'MENUNGGU SCAN'}</span></td></tr>`).join('') || '<tr><td colspan="4" class="p-10 text-center italic text-slate-400">Nihil.</td></tr>'}
+                </tbody>
+            </table>`;
         };
 
         window.getDailyRekapTable = () => {
@@ -558,7 +601,7 @@
                 <div class="flex flex-wrap bg-white p-1 rounded-3xl shadow-sm border overflow-hidden">
                     <button onclick="window.switchSettingsTab('profile')" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest ${tab === 'profile' ? 'bg-indigo-900 text-white shadow-lg' : 'text-slate-400'}">Profil & Tema</button>
                     <button onclick="window.switchSettingsTab('schedule')" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest ${tab === 'schedule' ? 'bg-indigo-900 text-white shadow-lg' : 'text-slate-400'}">Jadwal & Kelas</button>
-                    <button onclick="window.switchSettingsTab('system')" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest ${tab === 'system' ? 'bg-indigo-900 text-white shadow-lg' : 'text-slate-400'}">Sistem & WA</button>
+                    <button onclick="window.switchSettingsTab('system')" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest ${tab === 'system' ? 'bg-indigo-900 text-white shadow-lg' : 'text-slate-400'}">Sistem & Keamanan</button>
                 </div>
                 <div id="set-content" class="space-y-10">${window.renderSettingsTabContent(tab)}</div>
                 <button onclick="window.saveAllSettings()" class="w-full py-6 btn-primary text-white rounded-[2rem] font-black uppercase text-xs shadow-xl tracking-widest">SIMPAN KE CLOUD</button>
@@ -597,24 +640,40 @@
                             <div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400">Fonnte API Key</label><input id="set-fonnte" type="password" value="${p.fonnteKey}" class="w-full p-4 bg-slate-50 border rounded-xl font-mono text-xs"></div>
                             <div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400">Nomor Penerima</label><input id="set-penerima" value="${p.waPenerima}" class="w-full p-4 bg-slate-50 border rounded-xl font-bold"></div>
                             <div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400">Waktu Kirim Laporan</label><input id="set-report-time" type="time" value="${p.waReportTime}" class="w-full p-4 bg-slate-50 border rounded-xl font-bold"></div>
-                            <div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400">Batas Alpa Notifikasi</label><input id="set-alpa-limit" type="number" value="${p.waAutoAlpaLimit}" class="w-full p-4 bg-slate-50 border rounded-xl font-bold"></div>
                         </div>
                     </div>
                     <hr>
                     <div class="space-y-6">
-                        <h3 class="text-lg font-black uppercase">Ambang Penilaian (%)</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400">Target BAIK (Min %)</label><input id="set-baik" type="number" value="${p.baikThreshold}" class="w-full p-4 bg-slate-50 border rounded-xl font-bold"></div>
-                            <div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400">Target SEDANG (Min %)</label><input id="set-sedang" type="number" value="${p.sedangThreshold}" class="w-full p-4 bg-slate-50 border rounded-xl font-bold"></div>
+                        <h3 class="text-lg font-black uppercase">Penghapusan Data (Super Admin)</h3>
+                        <div class="p-6 bg-rose-50 rounded-2xl border border-rose-100 flex items-center justify-between">
+                            <div>
+                                <p class="text-[10px] font-black text-rose-600 uppercase">Hapus Seluruh Riwayat Presensi</p>
+                                <p class="text-[8px] font-bold text-rose-400 uppercase mt-1">Hanya dapat dilakukan oleh Admin Super</p>
+                            </div>
+                            <button onclick="window.resetAbsensiData()" class="${window.currentUserRole === 'superadmin' ? '' : 'opacity-30 pointer-events-none'} px-6 py-3 bg-rose-600 text-white rounded-xl font-black text-[9px] uppercase shadow-lg">RESET ABSENSI</button>
                         </div>
                     </div>
                     <hr>
                     <div class="space-y-6">
-                        <div class="flex justify-between items-center"><h3 class="text-lg font-black uppercase">Manajemen Admin Sekunder</h3><button onclick="window.renderAddAdminForm()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-[8px] uppercase">+ AKUN BARU</button></div>
+                        <div class="flex justify-between items-center"><h3 class="text-lg font-black uppercase">Manajemen Akun</h3><button onclick="window.renderAddAdminForm()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-[8px] uppercase">+ AKUN BARU</button></div>
                         <div class="overflow-hidden border rounded-2xl"><table class="w-full text-left text-[9px] uppercase"><thead class="bg-slate-50 border-b font-black text-slate-400"><tr><th class="p-4">USERNAME</th><th class="p-4 text-center">AKSI</th></tr></thead><tbody class="divide-y">${window.dataAdmins.map(a => `<tr><td class="p-4 font-black">${a.user}</td><td class="p-4 text-center"><button onclick="window.deleteData('admins', '${a.id}')" class="text-rose-300 hover:text-rose-500"><i class="fas fa-trash"></i></button></td></tr>`).join('') || '<tr><td colspan="2" class="p-4 text-center italic text-slate-400">Nihil.</td></tr>'}</tbody></table></div>
                     </div>
                 </div>`;
             return '';
+        };
+
+        window.resetAbsensiData = async () => {
+            if(window.currentUserRole !== 'superadmin') return window.showToast("Akses Ditolak!");
+            if(confirm("PERINGATAN: Hapus seluruh data presensi santri selamanya? Tindakan ini tidak bisa dibatalkan.")) {
+                try {
+                    const batch = writeBatch(db);
+                    window.dataPresensi.forEach(p => {
+                        batch.delete(getPublicDoc('presensi', p.id));
+                    });
+                    await batch.commit();
+                    window.showToast("SEMUA DATA ABSENSI TELAH DIRESET!");
+                } catch(e) { window.showToast("Gagal melakukan reset."); }
+            }
         };
 
         window.saveAllSettings = async () => {
@@ -696,7 +755,7 @@
             const nis = window.selectedIzinNis; const s = window.dataSantriAktif.find(x => x.nis === nis);
             const crit = document.getElementById('iz-kriteria').value; const m = document.getElementById('iz-mulai').value; const se = document.getElementById('iz-selesai').value;
             if(!nis || !m || !se) return window.showToast("Lengkapi data!");
-            const docRef = await addDoc(getPublicCol('izin'), { noSurat: `IZN-${Date.now()}`, nama: s.nama, nis: s.nis, tingkatan: s.tingkatan, kriteria: crit, tglMulai: m, tglSelesai: se, jamMulai: document.getElementById('iz-jam-mulai').value, jamSelesai: document.getElementById('iz-jam-selesai').value, pemberi: document.getElementById('iz-pemberi').value, timestamp: Date.now() });
+            const docRef = await addDoc(getPublicCol('izin'), { noSurat: `IZN-${Date.now()}`, nama: s.nama, nis: s.nis, tingkatan: s.tingkatan, kriteria: crit, tglMulai: m, tglSelesai: se, jamMulai: document.getElementById('iz-jam-mulai').value, jamSelesai: document.getElementById('iz-jam-selesai').value, pemberi: document.getElementById('iz-pemberi').value, status: 'Aktif', timestamp: Date.now() });
             window.showToast("IZN DITERBITKAN!"); window.downloadIzinPDF(docRef.id);
         };
 
@@ -705,62 +764,82 @@
             const hexToRgb = (hex) => { const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16); return [r, g, b]; };
             const rgb = hexToRgb(p.themeColor || '#1e1b4b');
             
-            // Background Header
             doc.setFillColor(rgb[0], rgb[1], rgb[2]); doc.rect(0, 0, 148, 25, 'F');
             doc.setTextColor(255, 255, 255); doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text(p.name.toUpperCase(), 74, 12, { align: 'center' });
             doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.text(p.address, 74, 17, { align: 'center' });
-            
-            // Border Line
             doc.setDrawColor(rgb[0], rgb[1], rgb[2]); doc.setLineWidth(0.5); doc.line(10, 28, 138, 28);
-
-            // Title
             doc.setTextColor(0, 0, 0); doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.text("SURAT IZIN RESMI SANTRI", 74, 38, { align: 'center' });
             doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.text("Nomor: " + i.noSurat, 74, 43, { align: 'center' });
             
             const tableData = [
                 ["Nama Lengkap", ":", i.nama.toUpperCase()],
                 ["Nomor Induk (NIS)", ":", i.nis],
-                ["Tingkatan/Kelas", ":", i.tingkatan || "-"],
                 ["Kriteria Izin", ":", i.kriteria.toUpperCase()],
-                ["Waktu Mulai", ":", i.tglMulai + " " + i.jamMulai],
-                ["Waktu Selesai", ":", i.tglSelesai + " " + i.jamSelesai],
+                ["Waktu Selesai", ":", i.tglSelesai + " " + (i.jamSelesai || '')],
                 ["Pemberi Izin", ":", i.pemberi]
             ];
             
-            doc.autoTable({ 
-                startY: 50, 
-                body: tableData, 
-                theme: 'plain', 
-                styles: { fontSize: 9, cellPadding: 2 },
-                columnStyles: { 0: { fontStyle: 'bold', width: 35 } }
-            });
+            doc.autoTable({ startY: 50, body: tableData, theme: 'plain', styles: { fontSize: 9, cellPadding: 2 }, columnStyles: { 0: { fontStyle: 'bold', width: 35 } } });
 
-            const finalY = doc.lastAutoTable.finalY + 15;
-            doc.setFontSize(8);
-            doc.text("Kediri, " + new Date().toLocaleDateString('id-ID'), 100, finalY);
+            // QR CODE KONFIRMASI KEMBALI
+            const qr = qrcode(4, 'L'); qr.addData(i.noSurat); qr.make();
+            doc.addImage(qr.createDataURL(), 'PNG', 59, 85, 30, 30);
+            doc.setFontSize(7); doc.text("SCAN QR UNTUK KONFIRMASI KEMBALI", 74, 118, { align: 'center' });
+
+            const finalY = 130;
+            doc.setFontSize(8); doc.text("Kediri, " + new Date().toLocaleDateString('id-ID'), 100, finalY);
             doc.text("Petugas Keamanan,", 100, finalY + 5);
             doc.text("( ____________________ )", 100, finalY + 25);
-            
-            doc.setFontSize(7); doc.setFont('helvetica', 'italic');
-            doc.text("*Surat ini adalah bukti sah perizinan dari sistem digital Nailul Muna.", 10, 195);
-            
-            doc.save(`Izin_${i.nama}.pdf`);
+            doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.text("*Wajib scan QR saat masuk gerbang untuk menghindari denda keterlambatan.", 10, 195);
+            doc.save(`Surat_Izin_${i.nama}.pdf`);
         };
 
         window.processScannerData = async (sc) => {
-            if(window.scanLock) return; window.scanLock = true; const activeSchedules = window.getActiveSchedules(); const santri = window.dataSantriAktif.find(x => x.qrKey === sc || x.nis === sc); 
+            if(window.scanLock) return; window.scanLock = true;
             const fb = document.getElementById('scan-feedback'); const fbg = document.getElementById('fb-bg'); const fbi = document.getElementById('fb-icon'); const fbt = document.getElementById('fb-title'); const fbd = document.getElementById('fb-desc');
             fb.classList.remove('hidden'); fb.classList.add('flex', 'opacity-100');
-            if(activeSchedules.length === 0) { fbg.className="absolute inset-0 bg-rose-600/95"; fbi.className="fas fa-clock text-5xl mb-4"; fbt.innerText="BUKAN JAM AKTIF"; fbd.innerText="Jadwal presensi belum mulai"; } 
-            else if(!santri) { fbg.className="absolute inset-0 bg-slate-700/95"; fbi.className="fas fa-exclamation-triangle text-5xl mb-4"; fbt.innerText="QR TIDAK TERDAFTAR"; fbd.innerText="ID Card tidak dikenal"; } 
+
+            // 1. Cek jika scan adalah Surat Izin (Konfirmasi Kembali)
+            const izinAktif = window.dataIzin.find(i => i.noSurat === sc && i.status !== 'Selesai');
+            if (izinAktif) {
+                const now = new Date();
+                const endD = new Date(izinAktif.tglSelesai + (izinAktif.jamSelesai ? 'T' + izinAktif.jamSelesai : 'T23:59')).getTime();
+                const isLate = now.getTime() > endD;
+                
+                let lateText = "";
+                if (isLate) {
+                    const diff = now.getTime() - endD;
+                    const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000);
+                    lateText = `TERLAMBAT ${h}j ${m}m`;
+                }
+
+                await updateDoc(getPublicDoc('izin', izinAktif.id), { 
+                    status: 'Selesai', 
+                    kembaliTimestamp: now.getTime(),
+                    keterlambatan: isLate ? lateText : null
+                });
+
+                fbg.className = isLate ? "absolute inset-0 bg-rose-600/95" : "absolute inset-0 bg-emerald-600/95";
+                fbi.className = "fas fa-home text-5xl mb-4";
+                fbt.innerText = "SELAMAT DATANG";
+                fbd.innerText = isLate ? `KEMBALI - ${lateText}` : `KEMBALI TEPAT WAKTU`;
+            } 
+            // 2. Jika bukan surat izin, proses presensi jadwal rutin
             else {
-                const validSch = activeSchedules.find(sch => (sch.tingkatan || []).length === 0 || sch.tingkatan.includes(santri.tingkatan));
-                if(!validSch) { fbg.className="absolute inset-0 bg-amber-600/95"; fbi.className="fas fa-user-slash text-5xl mb-4"; fbt.innerText="BUKAN JADWAL ANDA"; fbd.innerText=`Santri tingkat ${santri.tingkatan} tidak ada jadwal`; } 
+                const activeSchedules = window.getActiveSchedules();
+                const santri = window.dataSantriAktif.find(x => x.qrKey === sc || x.nis === sc);
+                
+                if(activeSchedules.length === 0) { fbg.className="absolute inset-0 bg-rose-600/95"; fbi.className="fas fa-clock text-5xl mb-4"; fbt.innerText="BUKAN JAM AKTIF"; fbd.innerText="Jadwal presensi belum mulai"; } 
+                else if(!santri) { fbg.className="absolute inset-0 bg-slate-700/95"; fbi.className="fas fa-exclamation-triangle text-5xl mb-4"; fbt.innerText="QR TIDAK TERDAFTAR"; fbd.innerText="ID Card tidak dikenal"; } 
                 else {
-                    const now = new Date(); const [h, m] = validSch.waktuMulai.split(':').map(Number); const st = new Date(); st.setHours(h, m, 0); const isLate = now > (new Date(st.getTime() + window.pondokIdentity.batasTelat * 60000));
-                    fbg.className=isLate ? "absolute inset-0 bg-orange-500/95" : "absolute inset-0 bg-emerald-600/95"; fbi.className=isLate ? "fas fa-user-clock text-5xl mb-4" : "fas fa-check-circle text-5xl mb-4";
-                    fbt.innerText=santri.nama; fbd.innerText=isLate ? "TELAT - " + validSch.nama : "HADIR - " + validSch.nama;
-                    await addDoc(getPublicCol('presensi'), { nama: santri.nama, nis: santri.nis, status: isLate ? 'Telat' : 'Hadir', jadwal: validSch.nama, timestamp: Date.now() });
+                    const validSch = activeSchedules.find(sch => (sch.tingkatan || []).length === 0 || sch.tingkatan.includes(santri.tingkatan));
+                    if(!validSch) { fbg.className="absolute inset-0 bg-amber-600/95"; fbi.className="fas fa-user-slash text-5xl mb-4"; fbt.innerText="BUKAN JADWAL ANDA"; fbd.innerText=`Santri tingkat ${santri.tingkatan} tidak ada jadwal`; } 
+                    else {
+                        const now = new Date(); const [h, m] = validSch.waktuMulai.split(':').map(Number); const st = new Date(); st.setHours(h, m, 0); const isLate = now > (new Date(st.getTime() + window.pondokIdentity.batasTelat * 60000));
+                        fbg.className=isLate ? "absolute inset-0 bg-orange-500/95" : "absolute inset-0 bg-emerald-600/95"; fbi.className=isLate ? "fas fa-user-clock text-5xl mb-4" : "fas fa-check-circle text-5xl mb-4";
+                        fbt.innerText=santri.nama; fbd.innerText=isLate ? "TELAT - " + validSch.nama : "HADIR - " + validSch.nama;
+                        await addDoc(getPublicCol('presensi'), { nama: santri.nama, nis: santri.nis, status: isLate ? 'Telat' : 'Hadir', jadwal: validSch.nama, timestamp: Date.now() });
+                    }
                 }
             }
             setTimeout(() => { if(fb) fb.classList.add('opacity-0'); setTimeout(() => { if(fb) fb.classList.add('hidden'); window.scanLock = false; }, 300); }, 3000);
@@ -784,15 +863,21 @@
         window.exportRekapPDF = () => {
             const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); const p = window.pondokIdentity; const filter = window.rekapFilter;
             doc.setFillColor(30, 27, 75); doc.rect(0, 0, 210, 35, 'F'); doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.text(p.name.toUpperCase(), 105, 15, { align: 'center' }); doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.text(p.address + " | Pengasuh: " + p.pengasuh, 105, 22, { align: 'center' }); doc.setDrawColor(255, 255, 255); doc.line(20, 25, 190, 25); doc.setTextColor(0, 0, 0); doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-            const title = filter.mode === 'bulanan' ? `LAPORAN BULAN - ${filter.calendarMode.toUpperCase()}` : `LAPORAN HARIAN - ${new Date().toLocaleDateString('id-ID')}`;
+            const title = filter.mode === 'bulanan' ? `LAPORAN BULAN - ${filter.calendarMode.toUpperCase()}` : (filter.mode === 'izin-terlambat' ? 'LAPORAN KETERLAMBATAN IZIN' : `LAPORAN HARIAN - ${new Date().toLocaleDateString('id-ID')}`);
             doc.text(title, 105, 50, { align: 'center' });
+            
+            let head = [], body = [];
             if (filter.mode === 'bulanan') {
-                const body = window.dataSantriAktif.filter(s => filter.tingkatan === "" || s.tingkatan === filter.tingkatan).map(s => { const stats = window.calculateSantriMonthlyStats(s.nis, filter.bulan, filter.tahun, filter.calendarMode); return [s.nama, s.tingkatan || "-", stats.hadir, stats.alpa, stats.izin, stats.sakit, window.calculateKriteria(stats.hadir, stats.total)]; });
-                doc.autoTable({ startY: 60, head: [['Nama', 'Tingkat', 'Hadir', 'Alpa', 'Izin', 'Sakit', 'Hasil']], body: body, theme: 'grid', styles: { fontSize: 8 }, headStyles: { fillColor: [30, 27, 75] } });
+                head = [['Nama', 'Tingkat', 'Hadir', 'Alpa', 'Izin', 'Sakit', 'Hasil']];
+                body = window.dataSantriAktif.filter(s => filter.tingkatan === "" || s.tingkatan === filter.tingkatan).map(s => { const stats = window.calculateSantriMonthlyStats(s.nis, filter.bulan, filter.tahun, filter.calendarMode); return [s.nama, s.tingkatan || "-", stats.hadir, stats.alpa, stats.izin, stats.sakit, window.calculateKriteria(stats.hadir, stats.total)]; });
+            } else if (filter.mode === 'izin-terlambat') {
+                head = [['Nama', 'Rencana', 'Scan Kembali', 'Durasi Telat']];
+                body = window.dataIzin.filter(i => (i.status === 'Terlambat' || i.keterlambatan)).map(i => [i.nama, i.tglSelesai, i.kembaliTimestamp ? new Date(i.kembaliTimestamp).toLocaleString('id-ID') : 'Belum Scan', i.keterlambatan || 'Menunggu']);
             } else {
-                const body = window.dataPresensi.map(p => [p.nama, p.jadwal, p.status]);
-                doc.autoTable({ startY: 60, head: [['Nama', 'Kegiatan', 'Status']], body: body, theme: 'grid', styles: { fontSize: 8 }, headStyles: { fillColor: [30, 27, 75] } });
+                head = [['Nama', 'Kegiatan', 'Status']];
+                body = window.dataPresensi.map(p => [p.nama, p.jadwal, p.status]);
             }
+            doc.autoTable({ startY: 60, head: head, body: body, theme: 'grid', styles: { fontSize: 8 }, headStyles: { fillColor: [30, 27, 75] } });
             doc.save(`Rekap_${p.name}_${filter.mode}.pdf`);
         };
 
@@ -802,56 +887,33 @@
         // --- CORE SYSTEM ---
         window.initFirebase = async () => { 
             try { 
-                if (!firebaseConfig.apiKey) {
-                    console.error("Firebase config is empty.");
-                    window.showToast("Config Cloud Belum Diset.");
-                    return;
-                }
-                
-                app = initializeApp(firebaseConfig); 
-                db = getFirestore(app); 
-                auth = getAuth(app); 
-
+                if (!firebaseConfig.apiKey) { console.error("Firebase config is empty."); return; }
+                app = initializeApp(firebaseConfig); db = getFirestore(app); auth = getAuth(app); 
                 const initAuth = async () => {
                     try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            return await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            return await signInAnonymously(auth);
-                        }
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { return await signInWithCustomToken(auth, __initial_auth_token); } 
+                        else { return await signInAnonymously(auth); }
                     } catch (authErr) {
-                        if (authErr.code === 'auth/custom-token-mismatch' || authErr.code === 'auth/invalid-custom-token') {
-                            return await signInAnonymously(auth);
-                        }
+                        if (authErr.code === 'auth/custom-token-mismatch') { return await signInAnonymously(auth); }
                         throw authErr;
                     }
                 };
-
                 await initAuth();
-
                 onAuthStateChanged(auth, (user) => { 
                     if(user) { 
                         document.getElementById('splash-screen').classList.add('hidden'); 
                         window.startSync(); 
                         if(window.currentUserRole) window.enterApp(); 
                         else document.getElementById('login-screen').classList.remove('hidden'); 
-                        
-                        // Timers
                         setInterval(() => { window.updateHeaders(); }, 60000); 
-                        setInterval(() => { window.updateDashboardTime(); }, 1000); // JAM REALTIME
+                        setInterval(() => { window.updateDashboardTime(); }, 1000); 
                         window.updateHeaders();
-                    } else {
-                        document.getElementById('splash-screen').classList.remove('hidden');
-                    }
+                    } else { document.getElementById('splash-screen').classList.remove('hidden'); }
                 }); 
-            } catch(e) { 
-                console.error("Firebase init error:", e);
-                window.showToast("Koneksi Database Gagal."); 
-            } 
+            } catch(e) { window.showToast("Koneksi Database Gagal."); } 
         };
         
         window.addEventListener('load', window.initFirebase);
-
         window.handleLogin = (e) => { e.preventDefault(); const u = document.getElementById('login-username').value; const p = document.getElementById('login-password').value; const isSuper = u === 'admin' && p === window.pondokIdentity.superPass; const isAdmin = window.dataAdmins.find(a => a.user === u && a.pass === p); if(isSuper || isAdmin) { window.currentUserRole = isSuper ? 'superadmin' : 'admin'; localStorage.setItem('nm_role', window.currentUserRole); window.enterApp(); } else window.showToast("Gagal login."); };
         window.handlePetugasLogin = (e) => { e.preventDefault(); const p = document.getElementById('petugas-password').value; if(p === window.pondokIdentity.tamuPass) { window.currentUserRole = 'petugas'; localStorage.setItem('nm_role', 'petugas'); window.enterApp(); } else window.showToast("Password Salah!"); };
         window.enterApp = () => { document.getElementById('login-screen').classList.add('hidden'); document.getElementById('main-sidebar').classList.remove('hidden'); document.getElementById('main-sidebar').classList.add('flex'); document.getElementById('main-content').classList.remove('hidden'); document.getElementById('main-content').classList.add('flex'); document.getElementById('role-text').innerText = window.currentUserRole.toUpperCase(); window.showPage('dashboard'); };
