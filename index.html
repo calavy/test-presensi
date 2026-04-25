@@ -508,7 +508,7 @@
             let kopColor = [30, 27, 75]; if (i.kriteria === 'Sakit') kopColor = [0, 166, 81]; else if (i.kriteria === 'Pulang') kopColor = [237, 28, 36]; else kopColor = [0, 114, 187];
             doc.setFillColor(kopColor[0], kopColor[1], kopColor[2]); doc.rect(0, 0, 148, 32, 'F');
             doc.setTextColor(255, 255, 255); if (p.logo && p.logo.startsWith('data:image')) doc.addImage(p.logo, 'PNG', 5, 5, 18, 18);
-            doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.text("API NAILUL MUNA", 74, 8, { align: 'center' });
+            doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.text("Pon.Pes Putra - Putri", 74, 8, { align: 'center' });
             doc.setFontSize(15); doc.text(p.name.toUpperCase(), 74, 20, { align: 'center' }); doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.text(p.address, 74, 25, { align: 'center' }); doc.line(10, 28, 138, 28);
             doc.setTextColor(0, 0, 0); doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.text("SURAT IZIN RESMI SANTRI", 74, 42, { align: 'center' }); doc.setFontSize(8); doc.text("Nomor: " + i.noSurat, 74, 47, { align: 'center' });
             const intro = "Memberikan izin kepada santri di bawah ini untuk meninggalkan lingkungan pondok pesantren sesuai keperluan. Harap mematuhi tata tertib."; doc.setFontSize(8.5); doc.text(doc.splitTextToSize(intro, 128), 10, 55);
