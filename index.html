@@ -153,8 +153,14 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, addDoc, updateDoc, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // Global Variables
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'nailul-muna-v14-pro';
+        let firebaseConfig = {};
+        try {
+            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        } catch(e) {
+            console.error("Firebase config error:", e);
+        }
         
         let app, auth, db;
         
@@ -323,6 +329,13 @@
 
         // --- SISTEM SINKRONISASI ---
         window.startSync = () => {
+            if (!auth.currentUser) return;
+
+            const onSyncError = (err) => {
+                console.error("Sync error:", err);
+                window.showToast("Koneksi Cloud Terganggu.");
+            };
+
             onSnapshot(getPublicDoc('configs', 'master'), (s) => {
                 if(s.exists()){
                     const d = s.data(); 
@@ -330,7 +343,8 @@
                     window.tingkatanList = d.tingkatanList || window.tingkatanList;
                     window.updateTheme();
                 }
-            });
+            }, onSyncError);
+
             ['santri_induk', 'santri_aktif', 'presensi', 'izin', 'admins', 'jadwal'].forEach(c => {
                 onSnapshot(getPublicCol(c), (snap) => {
                     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -347,7 +361,7 @@
                     if(window.currentPage === 'izin') window.renderIzin();
                     if(window.currentPage === 'aktif') window.renderAktif();
                     if(window.currentPage === 'data-induk') window.renderMaster();
-                });
+                }, onSyncError);
             });
         };
 
@@ -729,28 +743,49 @@
         // --- CORE SYSTEM ---
         window.initFirebase = async () => { 
             try { 
+                if (!firebaseConfig.apiKey) {
+                    console.error("Firebase config is empty.");
+                    window.showToast("Config Cloud Belum Diset.");
+                    return;
+                }
+                
                 app = initializeApp(firebaseConfig); 
                 db = getFirestore(app); 
                 auth = getAuth(app); 
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+
+                // Auth Logic
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        return await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        return await signInAnonymously(auth);
+                    }
+                };
+
+                await initAuth();
+
                 onAuthStateChanged(auth, (user) => { 
                     if(user) { 
                         document.getElementById('splash-screen').classList.add('hidden'); 
                         window.startSync(); 
                         if(window.currentUserRole) window.enterApp(); 
                         else document.getElementById('login-screen').classList.remove('hidden'); 
+                        
+                        // Timers
                         setInterval(() => { window.updateHeaders(); if(window.currentPage === 'dashboard') window.updateDashboardTime(); }, 60000); 
                         window.updateHeaders();
-                    } 
+                    } else {
+                        document.getElementById('splash-screen').classList.remove('hidden');
+                    }
                 }); 
-            } catch(e) { window.showToast("Database error."); } 
+            } catch(e) { 
+                console.error("Firebase init error:", e);
+                window.showToast("Koneksi Database Gagal."); 
+            } 
         };
         
         window.addEventListener('load', window.initFirebase);
+
         window.handleLogin = (e) => { e.preventDefault(); const u = document.getElementById('login-username').value; const p = document.getElementById('login-password').value; const isSuper = u === 'admin' && p === window.pondokIdentity.superPass; const isAdmin = window.dataAdmins.find(a => a.user === u && a.pass === p); if(isSuper || isAdmin) { window.currentUserRole = isSuper ? 'superadmin' : 'admin'; localStorage.setItem('nm_role', window.currentUserRole); window.enterApp(); } else window.showToast("Gagal login."); };
         window.handlePetugasLogin = (e) => { e.preventDefault(); const p = document.getElementById('petugas-password').value; if(p === window.pondokIdentity.tamuPass) { window.currentUserRole = 'petugas'; localStorage.setItem('nm_role', 'petugas'); window.enterApp(); } else window.showToast("Password Salah!"); };
         window.enterApp = () => { document.getElementById('login-screen').classList.add('hidden'); document.getElementById('main-sidebar').classList.remove('hidden'); document.getElementById('main-sidebar').classList.add('flex'); document.getElementById('main-content').classList.remove('hidden'); document.getElementById('main-content').classList.add('flex'); document.getElementById('role-text').innerText = window.currentUserRole.toUpperCase(); window.showPage('dashboard'); };
