@@ -547,9 +547,9 @@
             });
             return `
             <table class="w-full text-left text-[10px] uppercase">
-                <thead class="bg-slate-50 border-b text-slate-400 font-black"><tr><th class="p-6">SANTRI</th><th class="p-6">RENCANA KEMBALI</th><th class="p-6">WAKTU SCAN</th><th class="p-6">DURASI TELAT</th></tr></thead>
+                <thead class="bg-slate-50 border-b text-slate-400 font-black"><tr><th class="p-6">SANTRI</th><th class="p-6">RENCANA KEMBALI</th><th class="p-6">WAKTU SCAN</th><th class="p-6">DURASI TELAT</th><th class="p-6 text-center">SURAT</th></tr></thead>
                 <tbody class="divide-y">
-                    ${filtered.map(i => `<tr><td class="p-6 font-black">${i.nama}</td><td class="p-6 font-bold text-slate-400">${i.tglSelesai} ${i.jamSelesai || ''}</td><td class="p-6 font-bold text-rose-500">${i.kembaliTimestamp ? new Date(i.kembaliTimestamp).toLocaleString('id-ID') : 'BELUM KEMBALI'}</td><td class="p-6"><span class="px-3 py-1 rounded-full font-black text-[8px] bg-rose-100 text-rose-600">${i.keterlambatan || 'MENUNGGU SCAN'}</span></td></tr>`).join('') || '<tr><td colspan="4" class="p-10 text-center italic text-slate-400">Nihil.</td></tr>'}
+                    ${filtered.map(i => `<tr><td class="p-6 font-black">${i.nama}</td><td class="p-6 font-bold text-slate-400">${i.tglSelesai} ${i.jamSelesai || ''}</td><td class="p-6 font-bold text-rose-500">${i.kembaliTimestamp ? new Date(i.kembaliTimestamp).toLocaleString('id-ID') : 'BELUM KEMBALI'}</td><td class="p-6"><span class="px-3 py-1 rounded-full font-black text-[8px] bg-rose-100 text-rose-600">${i.keterlambatan || 'MENUNGGU SCAN'}</span></td><td class="p-6 text-center"><button onclick="window.downloadPemanggilanPDF('${i.id}')" class="px-3 py-1 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors"><i class="fas fa-file-signature"></i> PANGGILAN</button></td></tr>`).join('') || '<tr><td colspan="5" class="p-10 text-center italic text-slate-400">Nihil.</td></tr>'}
                 </tbody>
             </table>`;
         };
@@ -755,43 +755,116 @@
             const nis = window.selectedIzinNis; const s = window.dataSantriAktif.find(x => x.nis === nis);
             const crit = document.getElementById('iz-kriteria').value; const m = document.getElementById('iz-mulai').value; const se = document.getElementById('iz-selesai').value;
             if(!nis || !m || !se) return window.showToast("Lengkapi data!");
-            const docRef = await addDoc(getPublicCol('izin'), { noSurat: `IZN-${Date.now()}`, nama: s.nama, nis: s.nis, tingkatan: s.tingkatan, kriteria: crit, tglMulai: m, tglSelesai: se, jamMulai: document.getElementById('iz-jam-mulai').value, jamSelesai: document.getElementById('iz-jam-selesai').value, pemberi: document.getElementById('iz-pemberi').value, status: 'Aktif', timestamp: Date.now() });
+            
+            const nextNo = (window.dataIzin.length + 1).toString().padStart(4, '0');
+            const noSurat = `IZN/${new Date().getFullYear()}/${nextNo}`;
+
+            const docRef = await addDoc(getPublicCol('izin'), { 
+                noSurat: noSurat, 
+                nama: s.nama, 
+                nis: s.nis, 
+                tingkatan: s.tingkatan, 
+                kriteria: crit, 
+                tglMulai: m, 
+                tglSelesai: se, 
+                jamMulai: document.getElementById('iz-jam-mulai').value, 
+                jamSelesai: document.getElementById('iz-jam-selesai').value, 
+                pemberi: document.getElementById('iz-pemberi').value, 
+                status: 'Aktif', 
+                timestamp: Date.now() 
+            });
             window.showToast("IZN DITERBITKAN!"); window.downloadIzinPDF(docRef.id);
         };
 
         window.downloadIzinPDF = (id) => {
             const i = window.dataIzin.find(x => x.id === id); if(!i) return; const p = window.pondokIdentity; const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a5');
-            const hexToRgb = (hex) => { const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16); return [r, g, b]; };
-            const rgb = hexToRgb(p.themeColor || '#1e1b4b');
             
-            doc.setFillColor(rgb[0], rgb[1], rgb[2]); doc.rect(0, 0, 148, 25, 'F');
+            // Warna KOP berdasarkan kriteria
+            let kopColor = [30, 27, 75]; // Default Dark Blue
+            if (i.kriteria === 'Sakit') kopColor = [16, 185, 129]; // Hijau
+            if (i.kriteria === 'Pulang') kopColor = [239, 68, 68]; // Merah
+            
+            // Header
+            doc.setFillColor(kopColor[0], kopColor[1], kopColor[2]); doc.rect(0, 0, 148, 28, 'F');
             doc.setTextColor(255, 255, 255); doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text(p.name.toUpperCase(), 74, 12, { align: 'center' });
-            doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.text(p.address, 74, 17, { align: 'center' });
-            doc.setDrawColor(rgb[0], rgb[1], rgb[2]); doc.setLineWidth(0.5); doc.line(10, 28, 138, 28);
-            doc.setTextColor(0, 0, 0); doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.text("SURAT IZIN RESMI SANTRI", 74, 38, { align: 'center' });
-            doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.text("Nomor: " + i.noSurat, 74, 43, { align: 'center' });
+            doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.text(p.address, 74, 18, { align: 'center' });
+            doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.3); doc.line(10, 22, 138, 22);
+            
+            // Judul Surat
+            doc.setTextColor(0, 0, 0); doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.text("SURAT IZIN RESMI SANTRI", 74, 40, { align: 'center' });
+            doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.text("Nomor: " + i.noSurat, 74, 45, { align: 'center' });
             
             const tableData = [
                 ["Nama Lengkap", ":", i.nama.toUpperCase()],
                 ["Nomor Induk (NIS)", ":", i.nis],
                 ["Kriteria Izin", ":", i.kriteria.toUpperCase()],
-                ["Waktu Selesai", ":", i.tglSelesai + " " + (i.jamSelesai || '')],
+                ["Rencana Kembali", ":", i.tglSelesai + " " + (i.jamSelesai || '')],
                 ["Pemberi Izin", ":", i.pemberi]
             ];
             
-            doc.autoTable({ startY: 50, body: tableData, theme: 'plain', styles: { fontSize: 9, cellPadding: 2 }, columnStyles: { 0: { fontStyle: 'bold', width: 35 } } });
+            doc.autoTable({ startY: 52, body: tableData, theme: 'plain', styles: { fontSize: 9, cellPadding: 2 }, columnStyles: { 0: { fontStyle: 'bold', width: 35 } } });
 
-            // QR CODE KONFIRMASI KEMBALI
+            // Layout Tanda Tangan
+            const finalY = doc.lastAutoTable.finalY + 15;
+            doc.setFontSize(8);
+            doc.text("Petugas Keamanan,", 20, finalY);
+            doc.text("Mengetahui,", 100, finalY);
+            doc.setFont('helvetica', 'bold');
+            doc.text("Pengasuh,", 100, finalY + 4);
+            
+            doc.setFont('helvetica', 'normal');
+            doc.text("( ____________________ )", 20, finalY + 25);
+            doc.text("( " + p.pengasuh + " )", 100, finalY + 25);
+
+            // QR CODE KONFIRMASI KEMBALI di Pojok Bawah
             const qr = qrcode(4, 'L'); qr.addData(i.noSurat); qr.make();
-            doc.addImage(qr.createDataURL(), 'PNG', 59, 85, 30, 30);
-            doc.setFontSize(7); doc.text("SCAN QR UNTUK KONFIRMASI KEMBALI", 74, 118, { align: 'center' });
+            doc.addImage(qr.createDataURL(), 'PNG', 115, 175, 20, 20);
+            doc.setFontSize(6); doc.text("SCAN KEMBALI", 125, 197, { align: 'center' });
 
-            const finalY = 130;
-            doc.setFontSize(8); doc.text("Kediri, " + new Date().toLocaleDateString('id-ID'), 100, finalY);
-            doc.text("Petugas Keamanan,", 100, finalY + 5);
-            doc.text("( ____________________ )", 100, finalY + 25);
-            doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.text("*Wajib scan QR saat masuk gerbang untuk menghindari denda keterlambatan.", 10, 195);
+            // Footer info cetak
+            doc.setFontSize(6); doc.setFont('helvetica', 'italic');
+            doc.text("Surat ini diterbitkan secara digital pada " + new Date().toLocaleString('id-ID'), 10, 205);
             doc.save(`Surat_Izin_${i.nama}.pdf`);
+        };
+
+        window.downloadPemanggilanPDF = (id) => {
+            const i = window.dataIzin.find(x => x.id === id); if(!i) return; const p = window.pondokIdentity; const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a5');
+            
+            // Header (Merah Tegas)
+            doc.setFillColor(153, 27, 27); doc.rect(0, 0, 148, 28, 'F');
+            doc.setTextColor(255, 255, 255); doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text(p.name.toUpperCase(), 74, 12, { align: 'center' });
+            doc.setFontSize(7); doc.text(p.address, 74, 18, { align: 'center' });
+            
+            // Judul Panggilan
+            doc.setTextColor(0, 0, 0); doc.setFontSize(11); doc.text("SURAT PEMANGGILAN & PERINGATAN", 74, 40, { align: 'center' });
+            doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.text("Ref Izin: " + i.noSurat, 74, 45, { align: 'center' });
+
+            const durasiTelat = i.keterlambatan || "BELUM SCAN KEMBALI";
+            const tableData = [
+                ["Nama Santri", ":", i.nama.toUpperCase()],
+                ["Nomor Induk", ":", i.nis],
+                ["Kriteria Izin", ":", i.kriteria.toUpperCase()],
+                ["Batas Kembali", ":", i.tglSelesai + " " + (i.jamSelesai || '')],
+                ["Status Saat Ini", ":", "TERLAMBAT"],
+                ["Durasi Terlambat", ":", durasiTelat]
+            ];
+            
+            doc.autoTable({ startY: 52, body: tableData, theme: 'grid', styles: { fontSize: 9, cellPadding: 3 }, headStyles: { fillColor: [153, 27, 27] } });
+
+            doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+            doc.text("Santri yang bersangkutan diwajibkan segera menghadap pengasuh/petugas keamanan untuk", 10, doc.lastAutoTable.finalY + 10);
+            doc.text("mempertanggungjawabkan keterlambatan sesuai dengan peraturan pondok yang berlaku.", 10, doc.lastAutoTable.finalY + 14);
+
+            const signY = doc.lastAutoTable.finalY + 25;
+            doc.text("Kediri, " + new Date().toLocaleDateString('id-ID'), 100, signY);
+            doc.text("Keamanan,", 20, signY + 5);
+            doc.text("Pengasuh,", 100, signY + 5);
+            doc.text("( ____________________ )", 20, signY + 25);
+            doc.text("( " + p.pengasuh + " )", 100, signY + 25);
+
+            doc.setFontSize(6); doc.setFont('helvetica', 'italic');
+            doc.text("Dicetak otomatis pada " + new Date().toLocaleString('id-ID'), 10, 205);
+            doc.save(`Pemanggilan_${i.nama}.pdf`);
         };
 
         window.processScannerData = async (sc) => {
