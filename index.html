@@ -534,8 +534,8 @@
             if(window.scanLock) return; window.scanLock = true;
             const fb = document.getElementById('scan-feedback'); const fbg = document.getElementById('fb-bg'); const fbi = document.getElementById('fb-icon'); const fbt = document.getElementById('fb-title'); const fbd = document.getElementById('fb-desc');
             fb.classList.remove('hidden', 'opacity-0'); fb.classList.add('flex', 'opacity-100');
-            const izinAktif = window.dataIzin.find(i => i.noSurat === sc && i.status !== 'Selesai');
-            if (izinAktif) {
+            const izinAktif = window.dataIzin.find(i => i.noSurat === sc || i.id === sc);
+            if (izinAktif && izinAktif.status !== 'Selesai') {
                 const now = new Date(); const endD = new Date(izinAktif.tglSelesai + (izinAktif.jamSelesai ? 'T' + izinAktif.jamSelesai : 'T23:59')).getTime();
                 const isTugas = izinAktif.kriteria === 'Tugas Pesantren'; const isLate = !isTugas && (now.getTime() > endD);
                 let lateText = ""; if (isLate) { const diff = now.getTime() - endD; lateText = `TERLAMBAT ${Math.floor(diff / 3600000)}j ${Math.floor((diff % 3600000) / 60000)}m`; }
@@ -643,23 +643,23 @@
         };
 
         window.renderAktivasiForm = () => {
-            window.openModal(`<div class="space-y-8 p-4"><h3 class="text-2xl font-black uppercase text-indigo-950 tracking-tighter">Aktivasi Santri</h3><div class="space-y-6"><div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400 ml-4">Pilih Santri Master</label><select id="akt-santri-select" class="w-full p-5 bg-slate-50 border rounded-2xl font-bold text-xs uppercase"><option value="">-- PILIH SANTRI --</option>${window.dataSantriMaster.filter(m => !window.dataSantriAktif.find(a => a.nis === m.nis)).map(m => `<option value="${m.nis}">${m.nis} - ${m.nama}</option>`).join('')}</select></div><div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400 ml-4">Pilih Tingkatan</label><select id="akt-tingkat-select" class="w-full p-5 bg-slate-50 border rounded-2xl font-bold text-xs uppercase">${window.tingkatanList.map(t => `<option value="${t}">${t}</option>`).join('')}</select></div><button onclick="window.submitAktivasi()" class="w-full py-6 btn-primary text-white rounded-3xl font-black uppercase tracking-widest shadow-xl">AKTIFKAN SANTRI</button></div></div>`);
+            window.openModal(`<div class="space-y-8 p-4"><h3 class="text-2xl font-black uppercase text-indigo-950 tracking-tighter">Aktivasi Santri</h3><div class="space-y-6"><div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400 ml-4">Pilih Santri Master</label><select id="akt-santri-select" class="w-full p-5 bg-slate-50 border rounded-2xl font-bold text-xs uppercase"><option value="">-- PILIH SANTRI --</option>${window.dataSantriMaster.filter(m => !window.dataSantriAktif.find(a => a.nis === m.nis)).map(m => `<option value="${m.nis}">${m.nis} - ${m.nama}</option>`).join('')}</select></div><div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400 ml-4">Pilih Tingkatan</label><select id="akt-tingkat-select" class="w-full p-5 bg-slate-50 border rounded-2xl font-bold text-xs uppercase">${window.tingkatanList.map(t => `<option value="${t}">${t}</option>`).join('')}</select></div><div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400 ml-4">ID QR Khusus (Opsional)</label><input id="akt-qr-input" placeholder="Kosongkan untuk otomatis" class="w-full p-5 bg-slate-50 border rounded-2xl font-bold text-xs"></div><button onclick="window.submitAktivasi()" class="w-full py-6 btn-primary text-white rounded-3xl font-black uppercase tracking-widest shadow-xl">AKTIFKAN SANTRI</button></div></div>`);
         };
 
         window.submitAktivasi = async () => {
-            const nis = document.getElementById('akt-santri-select').value; const tingkat = document.getElementById('akt-tingkat-select').value;
+            const nis = document.getElementById('akt-santri-select').value; const tingkat = document.getElementById('akt-tingkat-select').value; const customQR = document.getElementById('akt-qr-input').value.trim();
             if(!nis) return window.showToast("Pilih santri!"); const m = window.dataSantriMaster.find(x => x.nis === nis);
-            try { await addDoc(getPublicCol('santri_aktif'), { nama: m.nama, nis: m.nis, jk: m.jk, tingkatan: tingkat, status: 'Aktif', qrKey: 'NM-' + m.nis, timestamp: Date.now() }); window.showToast("SANTRI DIAKTIFKAN!"); window.closeModal(); } catch(e) { window.showToast("Gagal aktivasi."); }
+            try { await addDoc(getPublicCol('santri_aktif'), { nama: m.nama, nis: m.nis, jk: m.jk, tingkatan: tingkat, status: 'Aktif', qrKey: customQR || ('NM-' + m.nis), timestamp: Date.now() }); window.showToast("SANTRI DIAKTIFKAN!"); window.closeModal(); } catch(e) { window.showToast("Gagal aktivasi."); }
         };
 
         window.renderEditAktifForm = (id) => {
             const s = window.dataSantriAktif.find(x => x.id === id);
-            window.openModal(`<div class="space-y-8 p-4"><h3 class="text-2xl font-black uppercase text-indigo-950 tracking-tighter leading-none">Edit Santri Aktif</h3><div class="space-y-6"><div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400 ml-4">Nama Lengkap</label><input id="edit-nama" value="${s.nama}" class="w-full p-5 bg-slate-50 border rounded-2xl font-bold uppercase text-xs"></div><div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400 ml-4">Tingkatan</label><select id="edit-tingkat" class="w-full p-5 bg-slate-50 border rounded-2xl font-bold text-xs uppercase">${window.tingkatanList.map(t => `<option value="${t}" ${t === s.tingkatan ? 'selected' : ''}>${t}</option>`).join('')}</select></div><button onclick="window.submitEditAktif('${id}')" class="w-full py-6 btn-primary text-white rounded-3xl font-black uppercase tracking-widest shadow-xl">SIMPAN PERUBAHAN</button></div></div>`);
+            window.openModal(`<div class="space-y-8 p-4"><h3 class="text-2xl font-black uppercase text-indigo-950 tracking-tighter leading-none">Edit Santri Aktif</h3><div class="space-y-6"><div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400 ml-4">Nama Lengkap</label><input id="edit-nama" value="${s.nama}" class="w-full p-5 bg-slate-50 border rounded-2xl font-bold uppercase text-xs"></div><div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400 ml-4">Tingkatan</label><select id="edit-tingkat" class="w-full p-5 bg-slate-50 border rounded-2xl font-bold text-xs uppercase">${window.tingkatanList.map(t => `<option value="${t}" ${t === s.tingkatan ? 'selected' : ''}>${t}</option>`).join('')}</select></div><div class="space-y-2"><label class="text-[9px] font-black uppercase text-slate-400 ml-4">ID QR / Key</label><input id="edit-qr" value="${s.qrKey || s.nis}" class="w-full p-5 bg-slate-50 border rounded-2xl font-bold text-xs"></div><button onclick="window.submitEditAktif('${id}')" class="w-full py-6 btn-primary text-white rounded-3xl font-black uppercase tracking-widest shadow-xl">SIMPAN PERUBAHAN</button></div></div>`);
         };
 
         window.submitEditAktif = async (id) => {
-            const n = document.getElementById('edit-nama').value; const t = document.getElementById('edit-tingkat').value;
-            try { await updateDoc(getPublicDoc('santri_aktif', id), { nama: n, tingkatan: t }); window.showToast("Data diperbarui!"); window.closeModal(); } catch(e) { window.showToast("Gagal update."); }
+            const n = document.getElementById('edit-nama').value; const t = document.getElementById('edit-tingkat').value; const qr = document.getElementById('edit-qr').value.trim();
+            try { await updateDoc(getPublicDoc('santri_aktif', id), { nama: n, tingkatan: t, qrKey: qr }); window.showToast("Data diperbarui!"); window.closeModal(); } catch(e) { window.showToast("Gagal update."); }
         };
 
         window.showQRCard = (id) => {
