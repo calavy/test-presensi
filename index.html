@@ -316,7 +316,12 @@
 
         window.updateDashboardTime = () => {
             const el = document.getElementById('dash-live-clock');
-            if(el) { const now = new Date(); el.innerText = now.getHours().toString().padStart(2,'0') + ":" + now.getMinutes().toString().padStart(2,'0') + ":" + now.getSeconds().toString().padStart(2,'0'); }
+            if(el) { 
+                const now = new Date(); 
+                el.innerText = now.getHours().toString().padStart(2,'0') + ":" + 
+                               now.getMinutes().toString().padStart(2,'0') + ":" + 
+                               now.getSeconds().toString().padStart(2,'0'); 
+            }
         };
 
         window.showToast = (msg) => {
@@ -427,6 +432,7 @@
                     </div>
                 </div>
             </div>`;
+            window.updateDashboardTime(); // Immediate update
         };
 
         // --- MASTER & AKTIF PAGES ---
@@ -440,11 +446,12 @@
                         <input type="file" id="excel-in" class="hidden" accept=".xlsx, .xls" onchange="window.handleExcelImport(this)">
                     </div>
                 </div>
-                <form onsubmit="window.handleRegMaster(event)" class="grid grid-cols-1 md:grid-cols-5 gap-4 bg-white p-8 rounded-[2.5rem] border shadow-sm">
+                <form id="form-reg-master" onsubmit="window.handleRegMaster(event)" class="grid grid-cols-1 md:grid-cols-6 gap-4 bg-white p-8 rounded-[2.5rem] border shadow-sm">
                     <input id="reg-nis" required placeholder="NIS" class="p-4 bg-slate-50 border rounded-xl font-bold uppercase text-xs">
                     <input id="reg-nama" required placeholder="NAMA LENGKAP" class="p-4 bg-slate-50 border rounded-xl font-bold uppercase md:col-span-2 text-xs">
                     <select id="reg-jk" class="p-4 bg-slate-50 border rounded-xl font-bold text-xs"><option value="L">Laki-laki</option><option value="P">Perempuan</option></select>
                     <button type="submit" class="py-4 rounded-xl btn-primary text-white font-black uppercase text-[10px]">Simpan</button>
+                    <button type="reset" class="py-4 rounded-xl bg-slate-100 text-slate-400 font-black uppercase text-[10px] hover:bg-slate-200">Reset</button>
                 </form>
                 <div class="bg-white rounded-[2.5rem] border overflow-hidden shadow-sm">
                     <table class="w-full text-left text-xs"><thead class="bg-slate-50 border-b text-[9px] font-black uppercase text-slate-400"><tr><th class="p-6">NIS</th><th class="p-6">NAMA</th><th class="p-6 text-center">AKSI</th></tr></thead>
@@ -527,9 +534,20 @@
                         <div class="p-6 bg-slate-50 rounded-3xl space-y-4"><p class="text-[8px] font-black text-indigo-400 uppercase tracking-widest">WAKTU MULAI</p><input type="date" id="iz-mulai" class="w-full p-4 bg-white border rounded-xl font-bold text-xs"><input type="time" id="iz-jam-mulai" class="w-full p-4 bg-white border rounded-xl font-bold text-xs" value="00:00"></div>
                         <div class="p-6 bg-slate-50 rounded-3xl space-y-4"><p class="text-[8px] font-black text-indigo-400 uppercase tracking-widest">WAKTU SELESAI</p><input type="date" id="iz-selesai" class="w-full p-4 bg-white border rounded-xl font-bold text-xs"><input type="time" id="iz-jam-selesai" class="w-full p-4 bg-white border rounded-xl font-bold text-xs" value="23:59"></div>
                     </div>
-                    <button onclick="window.submitIzin()" class="w-full py-6 btn-primary text-white rounded-3xl font-black uppercase text-xs shadow-xl">PROSES & DOWNLOAD PDF</button>
+                    <div class="flex gap-4">
+                        <button onclick="window.submitIzin()" class="flex-1 py-6 btn-primary text-white rounded-3xl font-black uppercase text-xs shadow-xl">PROSES & DOWNLOAD PDF</button>
+                        <button onclick="window.resetIzinForm()" class="px-10 py-6 bg-slate-100 text-slate-400 rounded-3xl font-black uppercase text-xs hover:bg-slate-200">RESET</button>
+                    </div>
                 </div>
             </div>`;
+        };
+
+        window.resetIzinForm = () => {
+            window.selectedIzinNis = null;
+            document.getElementById('iz-search').value = '';
+            document.getElementById('iz-mulai').value = '';
+            document.getElementById('iz-selesai').value = '';
+            window.showToast("Form diatur ulang.");
         };
 
         // --- HANDLERS & SETTINGS ---
@@ -686,11 +704,46 @@
             const i = window.dataIzin.find(x => x.id === id); if(!i) return; const p = window.pondokIdentity; const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a5');
             const hexToRgb = (hex) => { const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16); return [r, g, b]; };
             const rgb = hexToRgb(p.themeColor || '#1e1b4b');
-            doc.setFillColor(rgb[0], rgb[1], rgb[2]); doc.rect(0, 0, 148, 30, 'F');
-            doc.setTextColor(255, 255, 255); doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.text(p.name.toUpperCase(), 74, 15, { align: 'center' });
-            doc.setTextColor(0, 0, 0); doc.setFontSize(11); doc.text("SURAT IZIN SANTRI", 74, 45, { align: 'center' });
-            const tableData = [["NAMA", ":", i.nama], ["NIS", ":", i.nis], ["KET", ":", i.kriteria], ["MULAI", ":", i.tglMulai + " " + i.jamMulai], ["BERAKHIR", ":", i.tglSelesai + " " + i.jamSelesai]];
-            doc.autoTable({ startY: 55, body: tableData, theme: 'plain', styles: { fontSize: 9 } });
+            
+            // Background Header
+            doc.setFillColor(rgb[0], rgb[1], rgb[2]); doc.rect(0, 0, 148, 25, 'F');
+            doc.setTextColor(255, 255, 255); doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text(p.name.toUpperCase(), 74, 12, { align: 'center' });
+            doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.text(p.address, 74, 17, { align: 'center' });
+            
+            // Border Line
+            doc.setDrawColor(rgb[0], rgb[1], rgb[2]); doc.setLineWidth(0.5); doc.line(10, 28, 138, 28);
+
+            // Title
+            doc.setTextColor(0, 0, 0); doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.text("SURAT IZIN RESMI SANTRI", 74, 38, { align: 'center' });
+            doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.text("Nomor: " + i.noSurat, 74, 43, { align: 'center' });
+            
+            const tableData = [
+                ["Nama Lengkap", ":", i.nama.toUpperCase()],
+                ["Nomor Induk (NIS)", ":", i.nis],
+                ["Tingkatan/Kelas", ":", i.tingkatan || "-"],
+                ["Kriteria Izin", ":", i.kriteria.toUpperCase()],
+                ["Waktu Mulai", ":", i.tglMulai + " " + i.jamMulai],
+                ["Waktu Selesai", ":", i.tglSelesai + " " + i.jamSelesai],
+                ["Pemberi Izin", ":", i.pemberi]
+            ];
+            
+            doc.autoTable({ 
+                startY: 50, 
+                body: tableData, 
+                theme: 'plain', 
+                styles: { fontSize: 9, cellPadding: 2 },
+                columnStyles: { 0: { fontStyle: 'bold', width: 35 } }
+            });
+
+            const finalY = doc.lastAutoTable.finalY + 15;
+            doc.setFontSize(8);
+            doc.text("Kediri, " + new Date().toLocaleDateString('id-ID'), 100, finalY);
+            doc.text("Petugas Keamanan,", 100, finalY + 5);
+            doc.text("( ____________________ )", 100, finalY + 25);
+            
+            doc.setFontSize(7); doc.setFont('helvetica', 'italic');
+            doc.text("*Surat ini adalah bukti sah perizinan dari sistem digital Nailul Muna.", 10, 195);
+            
             doc.save(`Izin_${i.nama}.pdf`);
         };
 
@@ -759,7 +812,6 @@
                 db = getFirestore(app); 
                 auth = getAuth(app); 
 
-                // Auth Logic with Fail-Safe for Custom Tokens
                 const initAuth = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -768,7 +820,6 @@
                             return await signInAnonymously(auth);
                         }
                     } catch (authErr) {
-                        // Fallback to anonymous if token mismatch (common with custom project IDs)
                         if (authErr.code === 'auth/custom-token-mismatch' || authErr.code === 'auth/invalid-custom-token') {
                             return await signInAnonymously(auth);
                         }
@@ -786,7 +837,8 @@
                         else document.getElementById('login-screen').classList.remove('hidden'); 
                         
                         // Timers
-                        setInterval(() => { window.updateHeaders(); if(window.currentPage === 'dashboard') window.updateDashboardTime(); }, 60000); 
+                        setInterval(() => { window.updateHeaders(); }, 60000); 
+                        setInterval(() => { window.updateDashboardTime(); }, 1000); // JAM REALTIME
                         window.updateHeaders();
                     } else {
                         document.getElementById('splash-screen').classList.remove('hidden');
